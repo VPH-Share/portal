@@ -84,11 +84,6 @@
      </div>
 </div>
 {% endfor %}
-<div class="alert alert-warning">
-    <h4>Under development.</h4>
-    <span id="modal-message"> The workspace and the workflow execution are under development, please contact <a href="mailto:support@vph-share.eu">support@vph-share.eu</a> for any inconvenience.</span>
-    <span id="modal-message"> If you want to test this feature try <a href="/resources/62f3cf03-6591-47a0-9aad-c0dcc84bb6e6/">this workflow</a>, clicking 'Execute Workflow' (after you ask "request to share")</span>
-</div>
 
 
 <script type="text/javascript">
@@ -123,7 +118,7 @@
                 this.$details = wfmngProtocol.find('#'+this.$executionId+'-status-details');
                 this.$status = wfmngProtocol.find('#'+this.$executionId+'-status');
                 this.$statusInfo = wfmngProtocol.find('#'+this.$executionId+'-status-info');
-                this.$timeoutid = 0;
+                this.$timeoutid = null;
                 this.$loading = wfmngProtocol.find('.loading-alert');
                 this.$playButton.click(function(){
                     self.startTaverna($(this));
@@ -158,10 +153,13 @@
                             error: function(data){self.getExecutioninfo();}
                         }
                 );
-                //this.$timeoutid = window.setTimeout(function(){self.getExecutioninfo()}, 5000);
             };
 
             WfmngProtocol.prototype.deleteWorkflowCallBack = function(data){
+
+                if (!(null == this.$timeoutid)) {
+                    window.setInterval(this.$timeoutid);
+                }
 
                 if (data.results == 'true'){
                     $("#"+this.$executionId).remove();
@@ -193,20 +191,38 @@
             WfmngProtocol.prototype.getExecutioninfoCallBack = function(data){
                 var self = this;
                 var label = ["executionstatus",'error','error_msg',"Taverna workflow id"," Taverna url","AS config id "," Session Expire"," Execution started"," Execution finished"," Exit code"," Std output"," Std error","Output folder", "Output" , "Running"];
-                this.$details.empty();
                 var error = data[1];
                 var error_msg = data[2];
                 var executionStatusCode = parseInt(data[0]);
                 var is_running = data[data.length-1];
+                this.$details.empty();
+
                 if(executionStatusCode<8 && !error || is_running){
-                    setTimeout( function(){self.getExecutioninfo();} ,5000);
-                    if(is_running)
+
+                    if (null == this.$timeoutid) {
+                        this.$timeoutid = window.setInterval( function(){self.getExecutioninfo()}, 5000);
+                    }
+
+                    // change button only if running but not ready to run
+                    if (is_running) {
                         this.$playButton.button('loading');
+                    }
+
 
                 }else{
+                    // last execution pass to get ret information
+                    if (executionStatusCode<8 && !error && !is_running) {
+                    }
+
                     this.$playButton.button('reset');
-                    this.$timeoutid = 0;
+
+                    if (!(null == this.$timeoutid)) {
+                        clearInterval(this.$timeoutid);
+                        this.$timeoutid = null;
+                    }
                 }
+                
+
                 var alerts = this.$statusInfo.children('.alert');
                 for (var j=0; j<9; j++){
                     if (executionStatusCode == j){

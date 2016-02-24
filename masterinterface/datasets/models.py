@@ -1,11 +1,23 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.shortcuts import render_to_response
+from django.conf import settings
+from django.core.cache import cache
+
 from masterinterface.scs_resources.models import Resource
+
 import json
 import requests
 import StringIO
 import csv
+import hashlib as hl
+from lxml import etree, objectify
+import xml.dom.minidom as dom
+from urlparse import urlparse
+import itertools
+import logging
+
+logger = logging.getLogger()
 
 fake_csv = """"date_of_birth","waist","smoker","FixedIM","gender","MovedIM","First_Name","weight","Last_Name","country","address","PatientID","autoid"
 NULL,38.65964957,2,"C:\Users\smwood\Work\Y3Review\dicom\IM_0320.dcm",2,"C:\Users\smwood\Work\Y3Review\dicom\IM_0408.dcm","Dalton",51.98509226,"Coleman","Virgin Islands, British","Ap #700-2897 Dolor, Road","jRRhMftJ2qtV2Uco9C/E9/nUhqA=",1
@@ -33,48 +45,230 @@ class DatasetQuery(models.Model):
     def __unicode__(self):
         return self.name
 
+    def send_data_intersect_summary_with_metadata(self, ticket):
+        """call send_data_insersect_summary and get metadata foreach (guid,subjectnumber)
+            returns a tuple with ([guids],[datasets objs])
+        """
+        rel_guids = self.send_data_intersect_summary(ticket)
+        rel_dss = []
+        for guid in rel_guids:
+            ds = Resource.objects.get(global_id=guid[0])
+            ds.load_additional_metadata(ticket)
+            if ds.metadata is not None:
+                (paddress, dbname) = _url_parse(ds.metadata["localID"])
+                ds.metadata["publishaddress"] = paddress
+                ds.metadata["dbname"] = dbname
+                ds.metadata["sharedsubjects"] = guid[1]
+                rel_dss.append(ds)
+
+        return (rel_guids,rel_dss)
+
+
+    def send_data_intersect_summary(self, ticket):
+        """get related dbs using global_id.
+            returns: [] if not related datasets else a [] with their global_id
+        """
+        dataset_id = self.global_id
+        dss = [ ( dataset_id,0 ) ]
+        dss_tmp = []
+
+        if settings.FEDERATE_QUERY_URL:
+
+            # getting from cache
+            key = _get_hash_key("fq:", str(self.global_id), str(ticket))
+            from_cache = cache.get(key)
+
+            if from_cache is None:
+                try:
+                    results = requests.post("%s/DataIntersectSummary" %
+                                (settings.FEDERATE_QUERY_URL,) ,
+                                  data="datasetGUID=%s" % (dataset_id,),
+                                  auth=("admin", ticket),
+                                  headers = {'content-type': 'application/x-www-form-urlencoded'},
+                                  verify=False
+                                  ).content
+
+                    # xml parsing
+                    xml_tree = objectify.fromstring(results)
+                    dss_tmp = list(set(dss_tmp).union( [ ( el.text.split("|")[0],el.text.split("|")[1] ) \
+                                                        for el in xml_tree.string \
+                                                            if xml_tree.countchildren() > 0 ]))
+
+                    if len(dss_tmp) > 0:
+                        dss = dss_tmp
+                        cache.set(key,dss,300)
+
+                except Exception, e:
+                    logger.exception(e)
+
+                finally:
+                    return dss
+
+            else:
+                dss = from_cache
+                return dss
+
+        else:
+            logger.error("FEDERATE_QUERY_URL var in settings.py doesn't exist")
+            return dss
+
+
     def send_query(self, ticket):
         """
         """
         json_query = json.loads(self.query)
-        dataset = Resource.objects.get(global_id=self.global_id)
+
+        (_test, rel_datasets) = \
+            self.send_data_intersect_summary_with_metadata(ticket)
+
+        dataset = [ el for el in rel_datasets if el.global_id == self.global_id ]
         data = {
-            "dataset": dataset,
+            "dataset": dataset[0],
+            "rel_datasets": rel_datasets,
             "select": json_query["select"],
             "where": json_query["where"]
         }
-        xml_query = render_to_response("datasets/query_template.xml", data)
-        if dataset.metadata['localID'][-1] != '/':
-            dataset.metadata['localID'] = dataset.metadata['localID'] + '/'
 
-        results = requests.post("%sxmlquery/DatasetSOAPQuery.asmx" % dataset.metadata['localID'],
-                      data=xml_query.content,
-                      auth=("admin", ticket),
-                      headers = {'content-type': 'text/xml', 'SOAPAction': 'http://vph-share.eu/dms/Query'},
-                      verify=False
-        ).text
-        if "<QueryResult />" in results:
-            return ""
+        if settings.FEDERATE_QUERY_SOAP_URL:
+            try:
+                key = _get_hash_key(str(self.global_id),
+                        str(sorted(_test)),
+                        str(sorted(json_query.items())) )
+
+                from_cache = cache.get(key)
+
+                if from_cache is None:
+                    cached_results = self._query_request(ticket, json_query, data)
+                    cache.set(key,cached_results,300)
+
+                    return cached_results
+
+                else:
+                    return from_cache
+
+            except Exception, e:
+                logger.exception(e)
+                return ""
+
         else:
-            return results[results.find("<QueryResult>")+len("<QueryResult>"):results.find("</QueryResult>")]
+            logger.error("FEDERATE_QUERY_SOAP_URL var in settings.py doesn't exist")
+            return ""
+
 
     def get_header(self, ticket):
         csv_results = self.send_query(ticket)
-        return csv.reader(StringIO.StringIO(csv_results)).next()
+
+        if csv_results:
+            reader = csv.reader(StringIO.StringIO(csv_results))
+            header = [el for el in reader]
+            return header[0]
+
+        else:
+            return []
 
     def get_results(self, ticket):
-        csv_results = csv.reader(StringIO.StringIO(self.send_query(ticket)))
-        #ignore the first header row
-        csv_results.next()
-        return [ row for row in csv_results ]
+        data = self.send_query(ticket)
+
+        if data:
+            csv_results = csv.reader(StringIO.StringIO(data))
+            csv_results.next()
+            data = [ row for row in csv_results ]
+            return data
+        else:
+            return []
 
     def get_results_number(self, ticket):
         """
         """
         csv_results = self.send_query(ticket)
-        return len(StringIO.StringIO(csv_results).readlines())
+
+        if csv_results:
+            return len(StringIO.StringIO(csv_results).readlines())
+        else:
+            return 0
 
 
+    def get_query_data(self, ticket):
+        data = self.send_query(ticket)
+
+        if data:
+            csv_results = csv.reader(StringIO.StringIO(data))
+            data = [ row for row in csv_results ]
+            return data
+        else:
+            return []
+
+    def _query_request(self, ticket, query_dict, data):
+        """request single query or fed query
+            returns request .content response
+        """
+        results = ""
+        if _check_if_simple_query(query_dict):
+            xml_query = render_to_response("datasets/query_single_template.xml", data)
+
+            single_dataset = data["dataset"]
+            if single_dataset.metadata["localID"][-1] != "/":
+                single_dataset.metadata["localID"] = single_dataset.metadata["localID"] + "/"
+
+            results = requests.post(
+                    "%sxmlquery/DatasetSOAPQuery.asmx" % (single_dataset.metadata["localID"],),
+                    data=xml_query.content,
+                    auth=("admin", ticket),
+                    headers = {'content-type': 'text/xml',
+                        'SOAPAction': 'http://vph-share.eu/dms/Query'},
+                    verify=False
+                    ).content
+
+            # parsing xml like dom to get result
+            root = dom.parseString(results)
+            results = root.getElementsByTagName("QueryResult")[0].\
+                    childNodes[0].\
+                    data.\
+                    strip().rstrip('\r\n')
+
+        else:
+            xml_query = render_to_response("datasets/query_template.xml", data)
+
+            results = requests.post(
+                    "%s/xmlquery/DatasetSOAPQuery.asmx" % (settings.FEDERATE_QUERY_SOAP_URL,),
+                    data=xml_query.content,
+                    auth=("admin", ticket),
+                    headers = {'content-type': 'text/xml',
+                        'SOAPAction': 'http://vph-share.eu/dms/FederatedQuery'},
+                    verify=False
+                    ).content
+
+            root = dom.parseString(results)
+            results = root.getElementsByTagName("FederatedQueryResult")[0].\
+                    childNodes[0].\
+                    data.\
+                    strip().rstrip('\r\n')
+
+        # happy return
+        return results
 
 
+def _check_if_simple_query(query):
+    """if query contains only 1 dataset then function return True
+    otherwise return False
+    """
+    flatted = list(itertools.chain.from_iterable(
+        [ el["group"] for el in query["where"] if "where" in query ] ) )
 
+    return len(set( [ el["datasetname"] for el in query["select"] if "select" in query ] +
+        [ el["datasetname"] for el["group"] in flatted ] ) ) == 1
+
+def _url_parse(uri):
+    """ return tuple (host, 1st path without slash )"""
+    host = ""
+    path = ""
+
+    p_uri = urlparse(uri)
+    host = p_uri.netloc
+    path = p_uri.path.rstrip('/').strip('/')
+
+    return (host,path)
+
+def _get_hash_key(data, *args):
+    """get sha1 sum hexdigest for a string"""
+    return hl.sha1( ":".join([data] + [el for el in args]) ).hexdigest()

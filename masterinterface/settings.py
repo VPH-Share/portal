@@ -2,19 +2,21 @@
 
 import os
 from mod_auth import SignedTicket, Ticket
-import pysolr
 
 DEBUG = False
 
 TEMPLATE_DEBUG = DEBUG
 
 ADMINS = (
-    ('Matteo Balasso', 'm.balasso@scsitaly.com'),
     ('Alfredo Saglimbeni', 'a.saglimbeni@scsitaly.com')
 )
 
-AUTH_SERVICES = "http://auth.biomedtown.org/api"
+# Depending on your configuration this endpoint regards the authentication services located in the folder /authentication
+#Follow the readme inside that folder to configure this parameter properly
+AUTH_SERVICES = "https://portal.vph-share.eu/api/auth/api"
+#Your master interface base URL , all the HTTPRedirect response use this parameter.
 BASE_URL = "https://portal.vph-share.eu"
+#Where the sessionid is stored in the browser. this support he cros subdomain sessions.
 SESSION_COOKIE_DOMAIN = ".vph-share.eu"
 
 MANAGERS = ADMINS
@@ -30,39 +32,21 @@ PROJECT_ROOT = os.path.abspath(os.path.dirname(__file__))
 #    'PORT': '',                      # Set to empty string for default. Not used with sqlite3.
 #}
 
-# Cyfronet Database
-CYFRONET_DB = {
-        'ENGINE': 'django.db.backends.mysql', # Add 'postgresql_psycopg2', 'postgresql', 'mysql', 'sqlite3' or 'oracle'.
-        'NAME': 'masterinterface',                      # Or path to database file if using sqlite3.
-        'USER': 'vph',                      # Not used with sqlite3.
-        'PASSWORD': 'vph123',                  # Not used with sqlite3.
-        'HOST': 'localhost',                      # Set to empty string for localhost. Not used with sqlite3.
-        'PORT': '3306',                      # Set to empty string for default. Not used with sqlite3.
-    }
-
+#By default the master interface use a local sqlite database
+#don't use this configuration in production but reconfigure it using local_settings.py
+#The sugested database to use in production is Postgres
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql_psycopg2', # Add 'postgresql_psycopg2', 'postgresql', 'mysql', 'sqlite3' or 'oracle'.
-        'NAME': 'vphsharedb',                      # Or path to database file if using sqlite3.
-        'USER': 'gscs0001',                      # Not used with sqlite3.
+        'ENGINE': 'django.db.backends.sqlite3', # Add 'postgresql_psycopg2', 'postgresql', 'mysql', 'sqlite3' or 'oracle'.
+        'NAME': os.path.join(PROJECT_ROOT,'vphshare.db'),                      # Or path to database file if using sqlite3.
+        'USER': '',                      # Not used with sqlite3.
         'PASSWORD': '',                  # Not used with sqlite3.
-        'HOST': '10.100.1.172',                      # Set to empty string for localhost. Not used with sqlite3.
-        'PORT': '5432',                      # Set to empty string for default. Not used with sqlite3.
+        'HOST': '',                      # Set to empty string for localhost. Not used with sqlite3.
+        'PORT': '',                      # Set to empty string for default. Not used with sqlite3.
     }
 }
 
-#DATABASES = {
-#    'default': {
-#        'ENGINE': 'django.db.backends.postgresql_psycopg2', # Add 'postgresql_psycopg2', 'postgresql', 'mysql', 'sqlite3' or 'oracle'.
-#        'NAME': 'vphsharedb',                      # Or path to database file if using sqlite3.
-#        'USER': 'vph',                      # Not used with sqlite3.
-#        'PASSWORD': 'vph.0RG',                  # Not used with sqlite3.
-#        'HOST': '',                      # Set to empty string for localhost. Not used with sqlite3.
-#        'PORT': '',                      # Set to empty string for default. Not used with sqlite3.
-#    }
-#}
-
-#Define class where extened user profile
+#Define class where extened user profile most of them come from Biomedtown
 AUTH_PROFILE_MODULE = 'scs_auth.UserProfile'
 
 # Local time zone for this installation. Choices can be found here:
@@ -159,6 +143,8 @@ TEMPLATE_DIRS = (
     os.path.join(PROJECT_ROOT,'templates'),
 )
 
+#The installed apps of the master interface
+#Remeber to add your own apps if it needs.
 INSTALLED_APPS = (
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -168,31 +154,59 @@ INSTALLED_APPS = (
     'django.contrib.staticfiles',
     'django.contrib.admin',
     'django.contrib.admindocs',
+    #client for Sentry log manager
     'raven.contrib.django.raven_compat',
+    #base application for the biomwedtown auth backend
     'social_auth',
+    #base app for the master interface here you can find the base template and the most of the general views.
     'masterinterface.scs',
+    #authentication backend
     'masterinterface.scs_auth',
+    #Cyfronet filestore and cloufacade
     'masterinterface.cyfronet',
+    #semantic search
     'masterinterface.scs_search',
+    #django-workflow paket to manage the different status of the sharring request and group mebership request
     'workflows',
+    #Initaly used to manage the permission of the master interface not used anymore but left here to avoid conflicts.
     'permissions',
+    #Institutrions and vph-share smart group application.
     'masterinterface.scs_groups',
+    #Security procy configurator
     'masterinterface.scs_security',
+    #Resrouce manager , it works with the metadata repository the core application of the mater interface.
     'masterinterface.scs_resources',
+    # the client connentor for the atos services.
     'masterinterface.atos',
+    #DB versioning control
     'south',
+    #datetime widget for form inputs date type
     'datetimewidget',
+    #widget for the select input in the form
     'django_select2',
-    'masterinterface.scs_workspace',    
+    #Workspace of the master interface where the user can configure the exectution and run the workflow.
+    'masterinterface.scs_workspace',
+    #Application that manage the paraviews instances
     'masterinterface.paraviewweb',
+    #evolution of the scs_search regard only the refactor of the dataset query_builder.
     'masterinterface.datasets',
+    #library for django-celery
     'kombu.transport.django',
+    #celery
     'djcelery',
-    'paintstore'
+    # color picker widget used in the insitutional portal wizard.
+    'paintstore',
 
+    # external jobs
+    'masterinterface.cilab_ejobs'
     ##NEW_APP
 )
 
+
+#For the master interface we use the default Bioemdtown backend
+#It is an extension od the original openID of social_auth packet
+#If you want to use your own identtity provider uncomment what you need bellow
+#and configure in according with the django-social-auth packet (see the documentation)
 AUTHENTICATION_BACKENDS = (
     'scs_auth.backends.biomedtown.BiomedTownTicketBackend',
     'scs_auth.backends.biomedtown.FromTicketBackend',
@@ -321,11 +335,6 @@ LOBCDER_WEBDAV_HREF = '/lobcder/dav'
 LOBCDER_REST_URL = 'https://lobcder.vph.cyfronet.pl/lobcder/rest'
 LOBCDER_FOLDER_DOWNLOAD_PATH = '/compress/getzip'
 
-
-#PARAVIEW settings
-LOBCDER_DOWNLOAD_DIR = os.path.join(PROJECT_ROOT, 'data_paraview/')
-PARAVIEW_HOST = '46.105.98.182:9000'
-
 #METADATA SERVICE URL
 ATOS_METADATA_URL = 'http://vphshare.atosresearch.eu/metadata-extended'
 METADATA_TYPE = ['Dataset', 'File', 'SemanticWebService', 'Workflow', 'AtomicService', 'Workspace']
@@ -333,9 +342,13 @@ METADATA_TYPE = ['Dataset', 'File', 'SemanticWebService', 'Workflow', 'AtomicSer
 #WORKFLOW MANAGER URL
 WORKFLOW_MANANAGER_URL = 'http://wfmng.vph-share.eu/api'
 
-#PARAVIEW CONFIGS
-
-PARAVIEW_PYTHON_BIN = "/scs/app/ParaViewWeb/ParaView/build-pw4/bin/pvpython"
+# federate query end point
+FEDERATE_QUERY_URL = 'https://vphsharefind.sheffield.ac.uk/find/VphShareFind.asmx'
+FEDERATE_QUERY_SOAP_URL = 'https://share2mdpgateway.sheffield.ac.uk/FederatedQuery'
+#PARAVIEWWEB CONFIGS
+LOBCDER_DOWNLOAD_DIR = os.path.join(PROJECT_ROOT, 'data_paraview/')
+PARAVIEW_HOST = '0.0.0.0:9000'
+PARAVIEW_PYTHON_BIN = "/usr/local/lib/paraview-4.0/pvpython"
 PARAVIEWWEB_SERVER = os.path.join(PROJECT_ROOT, 'paraviewweb/app/paraviewweb_xmlrpc.py')
 PARAVIEWWEB_SERVER_TIMEOUT = 600
 PARAVIEWWEB_PORT = 5000
@@ -354,13 +367,11 @@ CACHES = {
     }
 }
 
-#SENTRY AND RAVEN CONFIGS
+#SENTRY AND RAVEN CONFIGS for Sentry log manager.
 RAVEN_CONFIG = {
     'dsn': 'http://2d9a99aec6be407cb4fff11ec2fdf236:86c4c065a476469b9dbf57744e21254a@sentry.vph-share.eu/2',
 }
 
-# SOLR search engine for metadata (faster way to have access to the metadata:
-MD_SEARCH_ENGINE = pysolr.Solr('http://vphshare.atosresearch.eu/solr/vph_big_prod/', timeout=100)
 ##################
 # LOCAL SETTINGS #
 ##################

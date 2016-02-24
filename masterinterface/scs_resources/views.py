@@ -966,12 +966,12 @@ def globalsearch(request):
             elif request.user.is_authenticated() and user !='' and request.user.username != user:
                 return PermissionDenied
             elif request.user.is_authenticated() and request.user.username == user:
-                response = Resource.objects.filter_by_roles(role='Reader',user=request.user,types=filterby[0],public=False,page= page, orderBy=columns[int(request.GET.get('order[0][column]'))], orderType=request.GET.get('order[0][dir]'),numResults=int(request.GET['length']))
+                response = Resource.objects.filter_by_roles(role='Reader',user=request.user,types=filterby[0],public=False,page= page, orderBy=columns[int(request.GET.get('order[0][column]'))], orderType=request.GET.get('order[0][dir]'),numResults=int(request.GET['length']), search_text=search_text, expression=expression)
                 resources = response['data']
             elif request.session.get('institutionportal', None) is not None:
                 group=request.session['institutionportal'].institution.group_ptr
                 types = None if 'all' in filterby or filterby == [] else filterby[0]
-                response = Resource.objects.filter_by_roles(role='Reader',types=types, group=group,public=False,page= page, orderBy=columns[int(request.GET.get('order[0][column]'))], orderType=request.GET.get('order[0][dir]'),numResults=int(request.GET['length']))
+                response = Resource.objects.filter_by_roles(role='Reader',types=types, group=group,public=False,page= page, orderBy=columns[int(request.GET.get('order[0][column]'))], orderType=request.GET.get('order[0][dir]'),numResults=int(request.GET['length']), search_text=search_text, expression=expression)
                 resources = response['data']
             else:
                 response = search_resource(search_text,expression, numResults=int(request.GET['length']), page= page, orderBy=columns[int(request.GET.get('order[0][column]'))], orderType=request.GET.get('order[0][dir]'))
@@ -1005,7 +1005,7 @@ def globalsearch(request):
                     'type':'<i title="%s" class="fa fa-%s"></i>'%( resource['type'], resource['type']),
                     'name':str(resource.get('name','')),
                     'owner':resource['author'],
-                    'update':resource['updateDate'],
+                    'update': str( resource.get('updateDate', '') ),
                     'rating':resource['rating'],
                     'views':resource['views'],
                     'actions':{'global_id':resource['globalID'], 'name':resource['name']},
@@ -1022,7 +1022,7 @@ def globalsearch(request):
         except Exception, e:
             from raven.contrib.django.raven_compat.models import client
             client.captureException()
-            raise SuspiciousOperation
+            raise SuspiciousOperation( str(e) )
 
 def resource_modal(request, global_id):
     r = Resource.objects.get(global_id=global_id)
