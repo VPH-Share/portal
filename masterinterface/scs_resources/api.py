@@ -73,11 +73,16 @@ class has_local_roles(BaseHandler):
                             author = User.objects.get(username=metadata['author'])
                             if metadata['type'] == "Workflow":
                                 resource, created = Workflow.objects.get_or_create(global_id=global_id, metadata=metadata, owner=author, type=metadata['type'])
-                                resource.save()
+
+                                if created:
+                                    resource.save()
+
                                 resource = resource.resource_ptr
                             else:
                                 resource, created = Resource.objects.get_or_create(global_id=global_id, metadata=metadata, owner=author, type=metadata['type'])
-                                resource.save()
+
+                                if created:
+                                    resource.save()
 
                         if resource.can_I(role, user):
                             resources.append(resource)
@@ -114,11 +119,16 @@ class has_local_roles(BaseHandler):
                             author = User.objects.get(username=resource['author'])
                             if resource['type'] == "Workflow":
                                 resource_in_db, created = Workflow.objects.get_or_create(global_id=resource['globalID'], metadata=resource, owner=author, type=resource['type'])
-                                resource_in_db.save()
+
+                                if created:
+                                    resource_in_db.save()
+
                                 resource_in_db = resource_in_db.resource_ptr
                             else:
                                 resource_in_db, created = Resource.objects.get_or_create(global_id=resource['globalID'], metadata=resource, owner=author, type=resource['type'])
-                                resource_in_db.save()
+
+                                if created:
+                                    resource_in_db.save()
 
                             if not resource_in_db.can_I(role, user):
                                 return False
