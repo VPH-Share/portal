@@ -12,4 +12,5 @@ from authentication import app as application
 # set credential manager: BIOMEDTOWN or POSTGRES
 CREDENTIAL_MANAGER='BIOMEDTOWN'
 
-CREDENTIAL_MANAGER_URL="www.biomedtown.org"
+# CREDENTIAL_MANAGER_URL="www.biomedtown.org"
+CREDENTIAL_MANAGER_URL="https://biomedtown.vph-share.eu"

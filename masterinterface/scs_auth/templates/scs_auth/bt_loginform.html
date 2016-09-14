@@ -125,10 +125,12 @@
         <p> <div>
                     Please enter your User Name
             </div>
-            <form id="login-form-bt" action="{% url socialauth_begin "biomedtown" %}" method="post">
+            <!--form id="login-form-bt" action="{% url socialauth_begin "biomedtown" %}" method="post"-->
+            <form id="login-form-bt" action="/scs_auth/auth_loginform" method="post">
                 {% csrf_token %}
                 <div class="input-append">
-                    <input id="openid_identifier" class="span2" type="text" name="openid_identifier" value="{{ username }}" />
+                    <!--input id="openid_identifier" class="span2" type="text" name="openid_identifier" value="{{ username }}" /-->
+                    <input id="openid_identifier" class="span2" type="text" name="biomedtown_username" value="{{ username }}" /><br>
                     <button data-loading-text="Submitting..." id="submit-button" type="submit" class="btn btn-primary" type="button" onclick="event.preventDefault();checkCookie();">submit</button>
                 </div>
                 <div>Are you an Internet Explorer user? <a id="ie-help">click here</a></div>

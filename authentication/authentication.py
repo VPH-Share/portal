@@ -30,13 +30,18 @@ import os
 import json
 import requests
 from datetime import timedelta
+import hmac
+import hashlib
+import random
+import string
 
 PROJECT_ROOT = os.path.abspath(os.path.dirname(__file__))
 MOD_AUTH_PRIVKEY = os.path.join(PROJECT_ROOT, 'keys/privkey_DSA.pem')
 MOD_AUTH_PUBKEY = os.path.join(PROJECT_ROOT, 'keys/pubkey_DSA.pem')
 TICKET = SignedTicket(MOD_AUTH_PUBKEY, MOD_AUTH_PRIVKEY)
 
-CREDENTIAL_MANAGER_URL = "www.biomedtown.org"
+#CREDENTIAL_MANAGER_URL = "www.biomedtown.org"
+CREDENTIAL_MANAGER_URL = "https://biomedtown.vph-share.eu"
 TIMEOUT = 12 * 60 * 60  # 12h
 ####################### USERS  ###########################
 
@@ -89,7 +94,7 @@ handler.connect(app, '/api')
 @login_manager.user_loader
 def load_user(id):
     """ *load_user* method
-    
+
         This method should take the unicode ID of a user
         and return the corresponding user object.
     """
@@ -99,8 +104,8 @@ def load_user(id):
 
 @app.route("/")
 def index():
-    """ *index* method 
-        
+    """ *index* method
+
         Return rendering to index page.
     """
     return redirect(url_for("login"))
@@ -144,20 +149,20 @@ def user_login():
                 USERS[lastid] = User(username, lastid)
                 USER_NAMES[username] = USERS[lastid]
 
-            # user_data = [ud for ud in validate_bt.values()]
-            user_data = [validate_bt['nickname'],
-                         validate_bt['fullname'],
-                         validate_bt['email'],
-                         validate_bt['language'],
-                         validate_bt['country'],
-                         validate_bt['postcode']
-            ]
+            user_data = [ud for ud in validate_bt.values()]
+            # user_data = [validate_bt['nickname'],
+            #             validate_bt['fullname'],
+            #             validate_bt['email'],
+            #             validate_bt['language'],
+            #             validate_bt['country'],
+            #             validate_bt['postcode']
+            # ]
 
             cip = str(request.remote_addr)
             validuntil = int(time.time()) + TIMEOUT
             ticket = TICKET.createTkt(validate_bt['nickname'], tokens=(), user_data=user_data, cip=cip, validuntil=validuntil)
 
-            #ticket = createTicket(app.config['SECRET_KEY'], request.form['username'], tokens=(), user_data=user_data)
+            # ticket = createTicket(app.config['SECRET_KEY'], request.form['username'], tokens=(), user_data=user_data)
             ticket_b64 = binascii.b2a_base64(ticket).rstrip()
 
             if str(domain).lower().count("vphshare"):
@@ -179,14 +184,13 @@ def user_login():
 @app.route("/login", methods=["GET", "POST"])
 def login():
     """ *login* method
-    
+
         This method get username and password from request form and validate it.
         If they are valid create a ticket for the current user using a SECRET_KEY shared with plone. After
         is create a cookie with the ticket and domain linked to came_from.
-        
+
         Return response.
     """
-    error = None
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
@@ -208,14 +212,14 @@ def login():
                     USERS[lastid] = User(username, lastid)
                     USER_NAMES[username] = USERS[lastid]
 
-                # user_data = [ud for ud in validate_bt.values()]
-                user_data = [validate_bt['nickname'],
-                             validate_bt['fullname'],
-                             validate_bt['email'],
-                             validate_bt['language'],
-                             validate_bt['country'],
-                             validate_bt['postcode']
-                ]
+                user_data = [ud for ud in validate_bt.values()]
+                # user_data = [validate_bt['nickname'],
+                #             validate_bt['fullname'],
+                #             validate_bt['email'],
+                #             validate_bt['language'],
+                #             validate_bt['country'],
+                #             validate_bt['postcode']
+                # ]
                 remember = request.form.get("remember", "no") == "yes"
                 if login_user(USER_NAMES[username], remember=remember):
                     flash("Logged in!")
@@ -224,7 +228,7 @@ def login():
                     ticket = TICKET.createTkt(request.form['username'], tokens=(), user_data=user_data, cip=cip,
                                               validuntil=validuntil)
 
-                    #ticket = createTicket(app.config['SECRET_KEY'], request.form['username'], tokens=(), user_data=user_data)
+                    # ticket = createTicket(app.config['SECRET_KEY'], request.form['username'], tokens=(), user_data=user_data)
                     ticket_b64 = binascii.b2a_base64(ticket).rstrip()
                     if str(domain).lower().count("vphshare"):
                         # we have to retrive the user roles from the MI
@@ -248,7 +252,7 @@ def login():
                     else:
                         response = app.make_response(render_template('index.html'))
 
-                    response.set_cookie('bt-tkt', ticket_b64, domain='.biomedtown.org')
+                    response.set_cookie('bt-tkt', ticket_b64, domain='.vph-share.eu')
                     response.set_cookie('bt-tkt', ticket_b64, domain='.vph-share.eu')
 
                     return response
@@ -258,14 +262,14 @@ def login():
         ticket_b64 = request.cookies.get('bt-tkt')
         ticket = binascii.a2b_base64(str(ticket_b64))
         domain = request.args.get("domain", "")
-        #if validateTicket(app.config['SECRET_KEY'], ticket, timeout=app.config['TIME_OUT']) is not None:
+        # if validateTicket(app.config['SECRET_KEY'], ticket, timeout=app.config['TIME_OUT']) is not None:
         try:
             cip = str(request.remote_addr)
             if isinstance(TICKET, SignedTicket):
                 data = ticket
             else:
                 data = ticket, cip
-            
+
             if TICKET.validateTkt(data) is not None:
                 flash("Logged in!")
                 userid, tocken, userdata, validuntil = TICKET.validateTkt(data)
@@ -286,7 +290,7 @@ def login():
                 came_from = request.args.get("came_from")
                 target_domain = ".%s" % ".".join(came_from.replace("http://", "").split(".")[1:]).split("/")[0]
 
-                #if came_from.count("physiomespace"):
+                # if came_from.count("physiomespace"):
                 came_from = "%s?ticket=%s" % (came_from, ticket_b64)
 
                 # redirect return a response object
@@ -296,7 +300,7 @@ def login():
                 return response
             else:
                 logout_user()
-        except Exception, e:
+        except:
             pass
 
     elif not current_user.is_authenticated():
@@ -307,11 +311,11 @@ def login():
 
 def rpc_login(username, password):
     """ *login* method
-    
+
         This method get username and password from request form and validate it.
         If they are valid create a ticket for the current user using a SECRET_KEY shared with plone. After
         is create a cookie with the ticket and domain linked to came_from.
-        
+
         Return response.
     """
 
@@ -330,23 +334,14 @@ def rpc_login(username, password):
                 lastid = ins.last_inserted_ids()[0]
                 USERS[lastid] = User(username, lastid)
                 USER_NAMES[username] = USERS[lastid]
-                # user_data = [ud for ud in validate_bt.values()]
-            user_data = [validate_bt['nickname'],
-                         validate_bt['fullname'],
-                         validate_bt['email'],
-                         validate_bt['language'],
-                         validate_bt['country'],
-                         validate_bt['postcode'],
-                         validate_bt['institution'],
-                         validate_bt['department'],
-                         validate_bt['institutionalrole']
-            ]
+
+            user_data = [ud for ud in validate_bt.values()]
 
             cip = str(request.remote_addr)
             validuntil = int(time.time()) + TIMEOUT
             ticket = TICKET.createTkt(username, tokens=(), user_data=user_data, cip=cip, validuntil=validuntil)
 
-            #ticket = createTicket(app.config['SECRET_KEY'], username, tokens=(), user_data=user_data)
+            # ticket = createTicket(app.config['SECRET_KEY'], username, tokens=(), user_data=user_data)
             ticket_b64 = base64.b64encode(ticket)
 
             return ticket_b64
@@ -356,7 +351,7 @@ def rpc_login(username, password):
 @login_required
 def logout():
     """ *logout* method
-    
+
         Call logout_user() and redirect to index page.
     """
     logout_user()
@@ -368,24 +363,44 @@ def validate_to_biomedtown(username, password):
     """ *validate_to_biomedtown* method
 
         This method check if the password is valid.
-        
+
         Return True or False.
     """
-    server = Server('https://%s:%s@%s/portal_towntool/' % (username, password, CREDENTIAL_MANAGER_URL))
+    # uri = 'https://%s:%s@%s/portal_towntool/' % (username, password, CREDENTIAL_MANAGER_URL)
+
+    check = check_password(username, password)
+
+    if check is False:
+        return False
+
+    response = {
+        'nickname': username,
+        'email': '',
+        'fullname': '',
+        'postcode': '',
+        'country': '',
+        'language': '',
+        'institution': '',
+        'department': '',
+        'institutionalrole': ''
+    }
+
+    # server = Server(uri)
+
     try:
-        response = server.authService()
+        # response = server.authService()
         if response is not False:
             return response
         return False
-    except Exception, e:
+    except:
         return False
 
 
 def validate_username(username):
     """ *validate_username* method
-    
+
         This method check if exist the username into database.
-        
+
         Return True or False.
     """
     query = usersTable.select(usersTable.c.name == username).execute().first()
@@ -404,12 +419,12 @@ def validate_tkt():
             ticket = binascii.a2b_base64(request.args.get("ticket"))
             if ticket is None:
                 return "NOT VALID"
-                #now = time.time()
-                #if app.config['SECRET_KEY'] is not None:
-                #ticket_data = validateTicket(app.config['SECRET_KEY'], ticket,
-                #    timeout=app.config['TIME_OUT'], now=now, mod_auth_tkt=True)
+                # now = time.time()
+                # if app.config['SECRET_KEY'] is not None:
+                #    ticket_data = validateTicket(app.config['SECRET_KEY'], ticket,
+                #      timeout=app.config['TIME_OUT'], now=now, mod_auth_tkt=True)
                 #
-                #if ticket_data is not None:
+                # if ticket_data is not None:
                 #    return "OK"
             try:
                 cip = str(request.remote_addr)
@@ -417,12 +432,13 @@ def validate_tkt():
                     data = ticket
                 else:
                     data = ticket, cip
-                ticket_data = TICKET.validateTkt(data)
+
+                TICKET.validateTkt(data)
                 return "OK"
-            except Exception, e:
+            except:
                 pass
         return "EXPIRE"
-    except Exception, e:
+    except:
         return "NOT VALID"
 
 
@@ -470,7 +486,7 @@ def rpc_validate_tkt(ticket=None):
             ticket = binascii.a2b_base64(ticket)
             if ticket is None:
                 return False
-            now = time.time()
+            # now = time.time()
             if app.config['SECRET_KEY'] is not None:
                 try:
                     cip = str(request.remote_addr)
@@ -478,19 +494,20 @@ def rpc_validate_tkt(ticket=None):
                         data = ticket
                     else:
                         data = ticket, cip
-                    ticket_data = TICKET.validateTkt(data)
+
+                    TICKET.validateTkt(data)
                     return True
-                except Exception, e:
+                except:
                     return None
 
-                    #ticket_data = validateTicket(app.config['SECRET_KEY'], ticket,
+                    # ticket_data = validateTicket(app.config['SECRET_KEY'], ticket,
                     #    timeout=app.config['TIME_OUT'], now=now, mod_auth_tkt=True)
 
-                    #if ticket_data is not None:
+                    # if ticket_data is not None:
                     #    return True
 
         return False
-    except Exception, e:
+    except:
         return False
 
 
@@ -511,16 +528,41 @@ def rpc_refresh_tkt(ticket=None):
             ticket_data = TICKET.validateTkt(data)
 
             validuntil = int(time.time()) + TIMEOUT
-            ticket = TICKET.createTkt(ticket_data[0], ticket_data[1], ticket_data[2], cip=cip, validuntil=validuntil)
+            ticket = TICKET.createTkt(ticket_data[0], ticket_data[1],
+                                      ticket_data[2], cip=cip,
+                                      validuntil=validuntil)
             ticket_b64 = base64.b64encode(ticket)
             return ticket_b64
 
         return False
-    except Exception, e:
+    except:
+        return False
+
+
+def check_password(username, password):
+    o = usersTable.select(usersTable.c.name == username).execute().first()
+    pwd = o[3]
+    salt = o[4]
+    enabled = o[5]
+
+    if salt is None and pwd is None and enabled is False:
+        salt = ''.join(random.SystemRandom().choice(string.uppercase + string.lowercase + string.digits) for el in range(12))
+        pwd = hmac.new(password,salt,hashlib.sha1).hexdigest()
+        usersTable.update().\
+            where(usersTable.c.name == username).\
+            values({usersTable.c.password: pwd,
+                    usersTable.c.salt: salt,
+                    usersTable.c.enabled: True}).execute()
+        return True
+
+    if enabled is True:
+        p = password.encode('utf-8') if type(password) == unicode else password
+        return pwd == hmac.new(p,salt,hashlib.sha1).hexdigest()
+    else:
         return False
 
 ############################################################################
-# register xmlrpc callback    
+# register xmlrpc callback
 handler.register(rpc_validate_tkt, "validate_tkt")
 handler.register(rpc_login, "rpc_login")
 handler.register(rpc_refresh_tkt, "refresh_tkt")
@@ -528,4 +570,4 @@ handler.register(rpc_refresh_tkt, "refresh_tkt")
 
 if __name__ == "__main__":
     app.run(port=6623, host='0.0.0.0', debug=True)
-    #pass
+    # pass

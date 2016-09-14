@@ -23,7 +23,7 @@ def authenticate(**credentials):
         except TypeError:
             # This backend doesn't accept these credentials as arguments. Try the next one.
             continue
-        if user is None:
+        if (user is None) or (isinstance(user, tuple) and user[0] is None):
             continue
             # Annotate the user object with the path of the backend.
         if isinstance(user, tuple):
@@ -116,5 +116,4 @@ def calculate_sign(privkey, data):
         sig = base64.b64encode(sig)
     else:
         raise ValueError('Unknonw key type: %s' % privkey)
-
     return sig

@@ -19,16 +19,36 @@ class masterInterfaceMiddleware(object):
                     client_address = request.META['REMOTE_ADDR']
                     user, tkt64 = authenticate(ticket=request.session['vph-tkt'], cip=client_address)
                 except:
-                    logout(request)
-                    request.META['VPH_TKT_COOKIE'] = True
-                    request.ticket = None
-                    return
+
+                    tkt = request.COOKIES.get('vph-tkt')
+                    try:
+                        ticket = binascii.a2b_base64(tkt)
+
+                    except :
+                        logout(request)
+                        request.META['VPH_TKT_COOKIE'] = True
+                        request.ticket = None
+                        return
+
+                    # user, tkt64 = authenticate(ticket=tkt) if tkt is not None else None, None
+                    user, tkt64 = authenticate(ticket=tkt)
+
+                    if  user is not None and tkt64 is not None: 
+                        login(request,user)
+                        request.META['VPH_TKT_COOKIE'] = tkt64
+
+                    else:
+                        logout(request)
+                        request.META['VPH_TKT_COOKIE'] = True
+                        request.ticket = None
+                        return
 
                 if user is None:
                     logout(request)
                     request.META['VPH_TKT_COOKIE'] = True
                     request.ticket = None
                     return
+
                 request.ticket = tkt64
                 request.META['VPH_TKT_COOKIE'] = tkt64
 
@@ -44,6 +64,7 @@ class masterInterfaceMiddleware(object):
             #if validate ticket is ok, open new session and set ticket cookie only for super user , not avlid under api.
 
             if request.GET.get('ticket') and not request.path.count('api') and request.user.is_superuser:
+
                 try:
                     ticket = binascii.a2b_base64(request.GET['ticket'])
                 except :

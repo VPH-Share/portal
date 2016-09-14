@@ -25,6 +25,7 @@ from masterinterface.cyfronet import easywebdav
 from models import *
 
 
+@csrf_exempt
 def done(request):
     """ login complete view """
     ctx = {
@@ -143,8 +144,10 @@ def bt_loginform(request):
         name = settings('SOCIAL_AUTH_PARTIAL_PIPELINE_KEY', 'partial_pipeline')
         request.session['saved_username'] = request.POST['username']
         backend = request.session[name]['backend']
+
         return redirect('socialauth_complete', backend=backend)
     context = {'version': version}
+
     if request.GET.get('error'):
         context['info'] = 'Login Error'
     return render_to_response(
@@ -171,9 +174,9 @@ def auth_loginform(request):
     """
 
     response = {'version': version}
+
     try:
-        if request.method == 'POST' and request.POST.get('biomedtown_username') and request.POST.get(
-                'biomedtown_password'):
+        if request.method == 'POST' and request.POST.get('biomedtown_username') and request.POST.get('biomedtown_password'):
             username = request.POST['biomedtown_username']
             password = request.POST['biomedtown_password']
 
@@ -186,13 +189,24 @@ def auth_loginform(request):
 
                 login(request, user)
 
+                webdav = easywebdav.connect(settings.LOBCDER_HOST, username='user', password=response['ticket'], protocol='https')
+                foldertocreate = settings.LOBCDER_ROOT + "/home/%s" % request.user.username
+                try:
+                    if not webdav.exists(foldertocreate):
+                       webdav.mkdir(foldertocreate)
+                except Exception as e:
+                    try:
+                        if webdav.exists(foldertocreate) == False:
+                            pass
+                    except Exception as e:
+                        pass
+
                 response = render_to_response(
                     'scs_auth/done.html',
                     response,
-                    RequestContext(request)
-                )
+                    RequestContext(request))
 
-                response.set_cookie('vph-tkt', tkt64)
+                response.set_cookie('vph-tkt', tkt64, domain='.vph-share.eu')
 
                 return response
 
@@ -201,8 +215,13 @@ def auth_loginform(request):
 
         elif request.method == 'POST':
             response['info'] = "Login error"
-    except:
-        response['info'] = "Login error"
+        elif request.method == 'GET':
+            if request.user.is_authenticated():
+                response['info'] = "username %s is authenticated" % (request.user.username,)
+            else:
+                response['info'] = "username is not authenticated"
+    except Exception, e:
+        response['info'] = "Login error with exceptioni %s" % (str(e),)
 
     return render_to_response(
         'scs_auth/auth_loginform.html',
@@ -334,7 +353,7 @@ def users_access_search(request):
                 return HttpResponse('FALSE')
 
             usermail = str(request.POST['email'])
-            f = urllib2.urlopen('https://www.biomedtown.org/getMemberByEmail?email=' + usermail)
+            f = urllib2.urlopen('https://biomedtown.vph-share.eu/getMemberByEmail?email=' + usermail)
             username = f.read()
 
             if username != '':
