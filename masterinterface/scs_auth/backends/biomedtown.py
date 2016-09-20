@@ -220,14 +220,9 @@ class BiomedTownTicketBackend (RemoteUserBackend):
                     User (User instance): Django User instance.\n
         """
         ticket = binascii.a2b_base64(ticket64)
-
         ticketObj = settings.TICKET
-
-        #user_data = validateTicket(ticket, settings.SECRET_KEY, mod_auth_pubtkt=settings.MOD_AUTH_PUBTKT, signType=settings.MOD_AUTH_PUBTKT_SIGNTYPE)
-        #if isinstance(ticketObj,SignedTicket):
         user_data = ticketObj.validateTkt(ticket)
-        #else:
-            #user_data = ticketObj.validateTkt(ticket,cip)
+
         if user_data:
 
             user_key = ['nickname', 'fullname', 'email', 'language', 'country', 'postcode']
@@ -321,8 +316,6 @@ class BiomedTownTicketBackend (RemoteUserBackend):
             return None, None
 
         except Exception, e:
-            from raven.contrib.django.raven_compat.models import client
-            client.captureException()
             return None, None
 
     def configure_user(self, user):
@@ -379,9 +372,6 @@ class FromTicketBackend (BiomedTownTicketBackend):
             return user, tkt64
 
         except Exception, e:
-            from raven.contrib.django.raven_compat.models import client
-            client.captureException(e)
-            client.captureMessage('%s %s\n' % (user, tkt64))
             return None, None
 
 

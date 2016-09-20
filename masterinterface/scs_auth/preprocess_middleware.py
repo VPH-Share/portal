@@ -24,20 +24,20 @@ class masterInterfaceMiddleware(object):
                     try:
                         ticket = binascii.a2b_base64(tkt)
 
-                    except :
-                        logout(request)
-                        request.META['VPH_TKT_COOKIE'] = True
-                        request.ticket = None
-                        return
+                        # user, tkt64 = authenticate(ticket=tkt) if tkt is not None else None, None
+                        user, tkt64 = authenticate(ticket=tkt)
 
-                    # user, tkt64 = authenticate(ticket=tkt) if tkt is not None else None, None
-                    user, tkt64 = authenticate(ticket=tkt)
+                        if user is not None and tkt64 is not None:
+                            login(request, user)
+                            request.META['VPH_TKT_COOKIE'] = tkt64
 
-                    if  user is not None and tkt64 is not None: 
-                        login(request,user)
-                        request.META['VPH_TKT_COOKIE'] = tkt64
+                        else:
+                            logout(request)
+                            request.META['VPH_TKT_COOKIE'] = True
+                            request.ticket = None
+                            return
 
-                    else:
+                    except:
                         logout(request)
                         request.META['VPH_TKT_COOKIE'] = True
                         request.ticket = None
