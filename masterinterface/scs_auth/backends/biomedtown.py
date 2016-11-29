@@ -10,6 +10,7 @@ from django.conf import settings
 
 from django.contrib.auth.backends import RemoteUserBackend
 from django.contrib.auth.models import User
+from django.contrib.auth import logout
 
 from social_auth.backends import OpenIDBackend, OpenIdAuth, OPENID_ID_FIELD, OLD_AX_ATTRS, AX_SCHEMA_ATTRS, USERNAME, sreg,ax
 from openid.consumer.consumer import SUCCESS, CANCEL, FAILURE
@@ -22,13 +23,15 @@ import binascii
 from datetime import  datetime
 from xmlrpclib import ServerProxy
 from mod_auth import SignedTicket,Ticket
+from mod_auth.exception import TicketExpired
 import time
 ############################
 #BIOMEDTOWN OPEN ID BACKEND
 ############################
 
 #Biomedtown authentication URL
-BIOMEDTOWN_URL = 'https://www.biomedtown.org/identity/%s'
+BIOMEDTOWN_URL = 'https://biomedtown.vph-share.eu/identity/%s'
+# BIOMEDTOWN_URL = 'https://www.biomedtown.org/identity/%s'
 
 #OPENIP play pipeline to resolve User in databases else create it.
 PIPELINE = (
@@ -72,7 +75,7 @@ class BiomedTownBackend(OpenIDBackend):
         # don't match the username/password calling conventions of
         # authenticate.
         if not (self.name and kwargs.get(self.name) and 'response' in kwargs):
-            return None
+            return None, None
 
         response = kwargs.get('response')
         pipeline = PIPELINE
@@ -185,11 +188,6 @@ class BiomedTownAuth(OpenIdAuth):
         openid_request.addExtension(fetch_request)
 
         return openid_request
-# Backend definition
-BACKENDS = {
-    'biomedtown' : BiomedTownAuth,
-    }
-
 ############################
 #END BIOMEDTOWN OPEN ID BACKEND
 ############################
@@ -222,14 +220,9 @@ class BiomedTownTicketBackend (RemoteUserBackend):
                     User (User instance): Django User instance.\n
         """
         ticket = binascii.a2b_base64(ticket64)
-
         ticketObj = settings.TICKET
-
-        #user_data = validateTicket(ticket, settings.SECRET_KEY, mod_auth_pubtkt=settings.MOD_AUTH_PUBTKT, signType=settings.MOD_AUTH_PUBTKT_SIGNTYPE)
-        #if isinstance(ticketObj,SignedTicket):
         user_data = ticketObj.validateTkt(ticket)
-        #else:
-            #user_data = ticketObj.validateTkt(ticket,cip)
+
         if user_data:
 
             user_key = ['nickname', 'fullname', 'email', 'language', 'country', 'postcode']
@@ -305,9 +298,10 @@ class BiomedTownTicketBackend (RemoteUserBackend):
 
         """
         if username is None or password is None:
-            return None
+            return None, None
 
         try:
+
             service_response = self.service.rpc_login(username, password)
 
             if service_response is not False:
@@ -315,16 +309,14 @@ class BiomedTownTicketBackend (RemoteUserBackend):
                 user, tkt64 =self.userTicket(service_response)
 
                 if user is None:
-                    return
+                    return None, None
 
                 return user, tkt64
 
-            return None
+            return None, None
 
         except Exception, e:
-            from raven.contrib.django.raven_compat.models import client
-            client.captureException()
-            return None
+            return None, None
 
     def configure_user(self, user):
         """
@@ -369,21 +361,23 @@ class FromTicketBackend (BiomedTownTicketBackend):
         """
 
         if ticket is None:
-            return
+            return None, None
 
         try:
-
             user, tkt64 =self.userTicket(ticket,cip)
 
             if user is None:
-                return
+                return None, None
 
             return user, tkt64
 
         except Exception, e:
-            from raven.contrib.django.raven_compat.models import client
-            client.captureException()
-            return None
+            return None, None
 
 
+
+# Backend definition
+BACKENDS = {
+    'biomedtown' : BiomedTownAuth
+    }
 

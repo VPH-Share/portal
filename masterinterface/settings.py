@@ -315,7 +315,7 @@ CLOUDFACACE_SSL = False
 ATOS_SERVICE_URL = "https://149.156.10.131:47056/ex2vtk/?wsdl"
 
 #Ticket expiration timeout in seconds
-TICKET_TIMEOUT = 12*60*60  # 12 h
+TICKET_TIMEOUT = 24*60*60  # 12 h
 
 #MOD_AUTH_TKT settings
 MOD_AUTH_PUBTICKET = os.path.join(PROJECT_ROOT,'scs_auth/keys/pubkey_DSA.pem')
@@ -336,7 +336,8 @@ LOBCDER_REST_URL = 'https://lobcder.vph.cyfronet.pl/lobcder/rest'
 LOBCDER_FOLDER_DOWNLOAD_PATH = '/compress/getzip'
 
 #METADATA SERVICE URL
-ATOS_METADATA_URL = 'http://vphshare.atosresearch.eu/metadata-extended'
+#ATOS_METADATA_URL = 'http://vphshare.atosresearch.eu/metadata-extended'
+ATOS_METADATA_URL = 'http://vphsharemdr.shef.ac.uk/metadata-extended'
 METADATA_TYPE = ['Dataset', 'File', 'SemanticWebService', 'Workflow', 'AtomicService', 'Workspace']
 
 #WORKFLOW MANAGER URL
@@ -383,3 +384,4 @@ try:
     from local_settings import *
 except ImportError:
     pass
+

@@ -19,6 +19,7 @@
         function closeFrame(){
             var iframe = window.parent.document.getElementById('btloginiframe');
             $(iframe).hide();
+            window.parent.location.replace("/");
             window.parent.location.reload();
         }
 
