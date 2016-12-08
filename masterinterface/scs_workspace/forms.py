@@ -25,7 +25,7 @@ class TavernaExecutionForm(forms.ModelForm):
     default_inputs = forms.BooleanField(label="Default Inputs", help_text="Check if you want to run this workflow with your inputs")
 
 
-    inputFile = forms.FileField(label="Input definition", help_text="Input definition file, *.xml")
+    inputFile = forms.FileField(label="Input definition", help_text="Input definition file, *.xml|*.csv")
 
 
 

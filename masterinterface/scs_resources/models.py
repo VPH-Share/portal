@@ -651,7 +651,7 @@ class ResourceRequest(models.Model):
 class Workflow(Resource):
 
     t2flow = models.FileField(verbose_name="Taverna workflow *", upload_to='./taverna_workflows/', help_text="Taverna workflow file, *.t2flow")
-    xml = models.FileField(verbose_name="Input definition *", upload_to='./workflows_input/', help_text="Input definition file, *.xml")
+    xml = models.FileField(verbose_name="Input definition *", upload_to='./workflows_input/', help_text="Input definition file, *.xml|*.csv")
 
     objects = ResourceManager()
 
